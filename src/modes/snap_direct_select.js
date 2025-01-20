@@ -53,12 +53,21 @@ SnapDirectSelect.onSetup = function (opts) {
     trash: true,
   });
 
+  const updateSnapList = () => {
+    const [snapList, vertices] = createSnapList(this.map, this._ctx.api, feature);
+    state.vertices = vertices;
+    state.snapList = snapList;
+  };
+  // for removing listener later on close
+  state["updateSnapList"] = updateSnapList;
+
   const optionsChangedCallBAck = (options) => {
     state.options = options;
   };
 
   // for removing listener later on close
   state["optionsChangedCallBAck"] = optionsChangedCallBAck;
+  this.map.on("draw.snap.update_snapList", updateSnapList);
   this.map.on("draw.snap.options_changed", optionsChangedCallBAck);
 
   return state;
@@ -76,6 +85,8 @@ SnapDirectSelect.onStop = function (state) {
 
   // remove moveemd callback
   //   this.map.off("moveend", state.moveendCallback);
+  // remove draw.snap.update_snapList callback
+  this.map.off("draw.snap.update_snapList", state.updateSnapList);
   this.map.off("draw.snap.options_changed", state.optionsChangedCallBAck);
 
   // This relies on the the state of SnapPolygonMode being similar to DrawPolygon

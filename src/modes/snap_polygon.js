@@ -56,7 +56,7 @@ SnapPolygonMode.onSetup = function (options) {
     overlap: true,
   });
 
-  const moveendCallback = () => {
+  const updateSnapList = () => {
     const [snapList, vertices] = createSnapList(
       this.map,
       this._ctx.api,
@@ -66,7 +66,7 @@ SnapPolygonMode.onSetup = function (options) {
     state.snapList = snapList;
   };
   // for removing listener later on close
-  state["moveendCallback"] = moveendCallback;
+  state["updateSnapList"] = updateSnapList;
 
   const optionsChangedCallBAck = (options) => {
     state.options = options;
@@ -75,7 +75,8 @@ SnapPolygonMode.onSetup = function (options) {
   // for removing listener later on close
   state["optionsChangedCallBAck"] = optionsChangedCallBAck;
 
-  this.map.on("moveend", moveendCallback);
+  this.map.on("moveend", updateSnapList);
+  this.map.on("draw.snap.update_snapList", updateSnapList);
   this.map.on("draw.snap.options_changed", optionsChangedCallBAck);
 
   return state;
@@ -150,7 +151,9 @@ SnapPolygonMode.onStop = function (state) {
   this.deleteFeature(IDS.HORIZONTAL_GUIDE, { silent: true });
 
   // remove moveemd callback
-  this.map.off("moveend", state.moveendCallback);
+  this.map.off("moveend", state.updateSnapList);
+  // remove draw.snap.update_snapList callback
+  this.map.off("draw.snap.update_snapList", state.updateSnapList);
   this.map.off("draw.snap.options_changed", state.optionsChangedCallBAck);
 
   var userPolygon = state.polygon;
