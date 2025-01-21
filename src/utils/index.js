@@ -278,8 +278,17 @@ const metersPerPixel = function (latitude, zoomLevel) {
 function snapToLineOrPolygon(
   closestLayer,
   snapOptions,
-  snapVertexPriorityDistance
+  snapVertexPriorityDistance,
+  lngLat
 ) {
+  const { 
+    snapToMidPoints = false,
+    snapToNodes = true,
+    snapToEndPoints = true,
+    snapToLines = true,
+  } = snapOptions ?? {};
+  const geometry = closestLayer.layer.geometry;
+  
   // A and B are the points of the closest segment to P (the marker position we want to snap)
   const A = closestLayer.segment[0];
   const B = closestLayer.segment[1];
@@ -297,9 +306,9 @@ function snapToLineOrPolygon(
 
   // distance between closestVertexLatLng and C
   let shortestDistance = distanceAC < distanceBC ? distanceAC : distanceBC;
-
   // snap to middle (M) of segment if option is enabled
-  if (snapOptions && snapOptions.snapToMidPoints) {
+  let isMiddlePoint = false;
+  if (snapToMidPoints) {
     const M = midpoint(A, B).geometry.coordinates;
     const distanceMC = distance(M, C);
 
@@ -307,21 +316,43 @@ function snapToLineOrPolygon(
       // M is the nearest vertex
       closestVertexLatLng = M;
       shortestDistance = distanceMC;
+      isMiddlePoint = true
     }
   }
 
   // the distance that needs to be undercut to trigger priority
   const priorityDistance = snapVertexPriorityDistance;
 
+  // Coordinates of the endpoints of the line
+  const endPoints = geometry.type === "LineString" ? [geometry.coordinates[0], geometry.coordinates[geometry.coordinates.length - 1]] : [];
+  // Determine if it is an endpoint
+  const isEndPoint = endPoints.find((point) => {
+    return point[0] === closestVertexLatLng[0] && point[1] === closestVertexLatLng[1];
+  })
+
   // the latlng we ultemately want to snap to
   let snapLatlng;
 
   // if C is closer to the closestVertexLatLng (A, B or M) than the snapDistance,
   // the closestVertexLatLng has priority over C as the snapping point.
-  if (shortestDistance < priorityDistance) {
-    snapLatlng = closestVertexLatLng;
+  // C-points are used when the shortest distance is greater than or equal to the optimal distance and snapToLines is true, otherwise the lines are not snapped
+  if (shortestDistance >= priorityDistance) {
+    snapLatlng = snapToLines ? C : lngLat;
   } else {
-    snapLatlng = C;
+    // If snapToNodes and snapToMidPoints and snapToEndPoints are not turned on, then no snapping is performed
+    // If snapToNodes and snapToMidPoints are not turned on, and if snapToEndPoints is turned on, then snap to endpoints
+    const shouldSnapToLngLat = 
+      // Ensure it's not the middle point
+      !isMiddlePoint &&
+      // Ensure we're not snapping to nodes
+      !snapToNodes &&
+      (
+        // If snapping to endpoints is enabled and it's not an endpoint
+        (snapToEndPoints && !isEndPoint) ||
+        // If snapping to endpoints is disabled
+        !snapToEndPoints                     
+      );
+    snapLatlng = shouldSnapToLngLat ? lngLat : closestVertexLatLng;
   }
 
   // return the copy of snapping point
@@ -336,7 +367,8 @@ function snapToPoint(closestLayer) {
 const checkPrioritiySnapping = (
   closestLayer,
   snapOptions,
-  snapVertexPriorityDistance = 1.25
+  snapVertexPriorityDistance = 1.25,
+  lngLat
 ) => {
   let snappingToPoint = !Array.isArray(closestLayer.segment);
   if (snappingToPoint) {
@@ -345,7 +377,8 @@ const checkPrioritiySnapping = (
     return snapToLineOrPolygon(
       closestLayer,
       snapOptions,
-      snapVertexPriorityDistance
+      snapVertexPriorityDistance,
+      lngLat
     );
   }
 };
@@ -388,14 +421,14 @@ export const snap = (state, e) => {
 
     const isMarker = closestLayer.isMarker;
     const snapVertexPriorityDistance = state.options.snapOptions
-      ? state.options.snapOptions.snapVertexPriorityDistance
-      : undefined;
-
+    ? state.options.snapOptions.snapVertexPriorityDistance
+    : undefined;
     if (!isMarker) {
       snapLatLng = checkPrioritiySnapping(
         closestLayer,
         state.options.snapOptions,
-        snapVertexPriorityDistance
+        snapVertexPriorityDistance,
+        [ lng, lat ]
       );
       // snapLatLng = closestLayer.latlng;
     } else {

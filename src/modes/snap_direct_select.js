@@ -53,6 +53,14 @@ SnapDirectSelect.onSetup = function (opts) {
     trash: true,
   });
 
+  const draw = this._ctx.api;
+  const updateSnapList = () => {
+    const [snapList, vertices] = createSnapList(this.map, draw, feature);
+    state.vertices = vertices;
+    state.snapList = snapList;
+  };
+  Object.assign(draw, { updateSnapList });
+
   const optionsChangedCallBAck = (options) => {
     state.options = options;
   };

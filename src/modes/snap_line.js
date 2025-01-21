@@ -56,22 +56,23 @@ SnapLineMode.onSetup = function (options) {
   };
 
   state.options = this._ctx.options;
+  const draw = this._ctx.api;
 
-  const moveendCallback = () => {
-    const [snapList, vertices] = createSnapList(this.map, this._ctx.api, line);
+  const updateSnapList = () => {
+    const [snapList, vertices] = createSnapList(this.map, draw, line);
     state.vertices = vertices;
     state.snapList = snapList;
   };
   // for removing listener later on close
-  state["moveendCallback"] = moveendCallback;
-
+  state["updateSnapList"] = updateSnapList;
+  Object.assign(draw, { updateSnapList });
   const optionsChangedCallBAck = (options) => {
     state.options = options;
   };
   // for removing listener later on close
   state["optionsChangedCallBAck"] = optionsChangedCallBAck;
 
-  this.map.on("moveend", moveendCallback);
+  this.map.on("moveend", updateSnapList);
   this.map.on("draw.snap.options_changed", optionsChangedCallBAck);
 
   return state;
@@ -146,7 +147,7 @@ SnapLineMode.onStop = function (state) {
   this.deleteFeature(IDS.HORIZONTAL_GUIDE, { silent: true });
 
   // remove moveemd callback
-  this.map.off("moveend", state.moveendCallback);
+  this.map.off("moveend", state.updateSnapList);
 
   // This relies on the the state of SnapLineMode being similar to DrawLine
   DrawLine.onStop.call(this, state);
