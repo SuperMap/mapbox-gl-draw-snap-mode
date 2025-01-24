@@ -1,5 +1,6 @@
 // Heavily inspired from work of @davidgilbertson on Github and `leaflet-geoman` project.
 import MapboxDraw from "@mapbox/mapbox-gl-draw";
+import throttle from "lodash.throttle";
 
 const { geojsonTypes } = MapboxDraw.constants;
 
@@ -40,12 +41,23 @@ export const addPointTovertices = (
   }
 };
 
-export const createSnapList = (map, draw, currentFeature) => {
-  // Get all drawn features
-  const features = draw.getAll().features;
+export const createSnapList = throttle((state, draw, event) => {
+  const { map, feature: currentFeature, targetLayersId, options } = state;
+  let filterLayersId;
+  let features = [];
+  if (state.options.snapOptions && options.snapOptions.filterLayersId) {
+    filterLayersId = options.snapOptions.filterLayersId;
+  } else {
+    features = draw.getAll().features;
+    filterLayersId = targetLayersId;
+  }
+  const point = event.point;
+  const queryFeatures = map.queryRenderedFeatures([[point.x - state.halfSize, point.y - state.halfSize], [point.x + state.halfSize, point.y + state.halfSize]], {
+    layers: filterLayersId
+  });
+  features = [...features, ...queryFeatures];
   const snapList = [];
 
-  // Get current bbox as polygon
   const bboxAsPolygon = (() => {
     const canvas = map.getCanvas(),
       w = canvas.width,
@@ -60,7 +72,6 @@ export const createSnapList = (map, draw, currentFeature) => {
 
   const vertices = [];
 
-  // Keeps vertices for drwing guides
   const addVerticesTovertices = (coordinates, isCurrentFeature = false) => {
     if (!Array.isArray(coordinates)) throw Error("Your array is not an array");
 
@@ -109,7 +120,7 @@ export const createSnapList = (map, draw, currentFeature) => {
   });
 
   return [snapList, vertices];
-};
+}, 150, { leading: true });
 
 const getNearbyvertices = (vertices, coords) => {
   const verticals = [];
@@ -134,7 +145,7 @@ const getNearbyvertices = (vertices, coords) => {
   };
 };
 
-const calcLayerDistances = (lngLat, layer) => {
+export const calcLayerDistances = (lngLat, layer) => {
   // the point P which we want to snap (probpably the marker that is dragged)
   const P = [lngLat.lng, lngLat.lat];
 
@@ -293,6 +304,10 @@ function snapToLineOrPolygon(
   const A = closestLayer.segment[0];
   const B = closestLayer.segment[1];
 
+  if (!A || !B) {
+    return;
+  }
+
   // C is the point we would snap to on the segment.
   // The closest point on the closest segment of the closest polygon to P. That's right.
   const C = [closestLayer.latlng.lng, closestLayer.latlng.lat];
@@ -433,6 +448,10 @@ export const snap = (state, e) => {
       // snapLatLng = closestLayer.latlng;
     } else {
       snapLatLng = closestLayer.latlng;
+    }
+
+    if (!snapLatLng) {
+      return {};
     }
 
     minDistance =

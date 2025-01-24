@@ -15,7 +15,7 @@ const { geojsonTypes, cursors } = MapboxDraw.constants;
 const SnapPointMode = { ...DrawPoint };
 
 SnapPointMode.onSetup = function (options) {
-  const point = this.newFeature({
+  const feature = this.newFeature({
     type: geojsonTypes.FEATURE,
     properties: {},
     geometry: {
@@ -29,7 +29,7 @@ SnapPointMode.onSetup = function (options) {
     getGuideFeature(IDS.HORIZONTAL_GUIDE)
   );
 
-  this.addFeature(point);
+  this.addFeature(feature);
   this.addFeature(verticalGuide);
   this.addFeature(horizontalGuide);
 
@@ -37,13 +37,25 @@ SnapPointMode.onSetup = function (options) {
   this.clearSelectedFeatures();
   doubleClickZoom.disable(this);
 
-  const [snapList, vertices] = createSnapList(this.map, this._ctx.api, point);
-
+  // const [snapList, vertices] = createSnapList(this.map, this._ctx.api, point);
+  let layers = this.map.getStyle().layers;
+  const targetLayers = layers.filter(layerInfo => {
+    const { type, source } = layerInfo;
+    if ((source !== 'mapbox-gl-draw-cold' && source !== 'mapbox-gl-draw-hot') && (type === 'circle' || type === 'line' || type === 'fill')) {
+      return true;
+    };
+  });
+  let targetLayersId = targetLayers.map((layerInfo) => {
+    return layerInfo.id;
+  });
   const state = {
     map: this.map,
-    point,
-    vertices,
-    snapList,
+    feature,
+    point: feature,
+    prevQueryBbox: null,
+    targetLayersId,
+    // vertices,
+    // snapList,
     selectedFeatures,
     verticalGuide,
     horizontalGuide,
@@ -66,7 +78,7 @@ SnapPointMode.onSetup = function (options) {
   // for removing listener later on close
   state["optionsChangedCallBAck"] = optionsChangedCallBAck;
 
-  this.map.on("moveend", updateSnapList);
+  // this.map.on("moveend", moveendCallback);
   this.map.on("draw.snap.options_changed", optionsChangedCallBAck);
 
   return state;
@@ -83,6 +95,23 @@ SnapPointMode.onClick = function (state) {
 };
 
 SnapPointMode.onMouseMove = function (state, e) {
+  state.halfSize = ((state.options.snapOptions && state.options.snapOptions.cacheSize) || 100) / 2;
+  const halfCacheSize = state.halfSize - 15;
+  const { x, y } = e.point;
+  if (!state.prevQueryBbox || (state.prevQueryBbox && !(state.prevQueryBbox[0] < x && state.prevQueryBbox[2] > x && state.prevQueryBbox[1] < y && state.prevQueryBbox[3] > y))) {
+    const [snapList, vertices] = createSnapList(state, this._ctx.api, e);
+
+    state.snapList = snapList;
+
+    state.vertices = vertices;
+
+    state.prevQueryBbox = [
+      x - halfCacheSize,
+      y - halfCacheSize,
+      x + halfCacheSize,
+      y + halfCacheSize
+    ]
+  }
   const { lng, lat } = snap(state, e);
 
   state.snappedLng = lng;
@@ -120,7 +149,7 @@ SnapPointMode.onStop = function (state) {
   this.deleteFeature(IDS.HORIZONTAL_GUIDE, { silent: true });
 
   // remove moveemd callback
-  this.map.off("moveend", state.updateSnapList);
+  // this.map.off("moveend", state.moveendCallback);
 
   // This relies on the the state of SnapPointMode having a 'point' prop
   DrawPoint.onStop.call(this, state);

@@ -16,7 +16,7 @@ import booleanIntersects from "@turf/boolean-intersects";
 const SnapPolygonMode = { ...DrawPolygon };
 
 SnapPolygonMode.onSetup = function (options) {
-  const polygon = this.newFeature({
+  const feature = this.newFeature({
     type: geojsonTypes.FEATURE,
     properties: {},
     geometry: {
@@ -30,7 +30,7 @@ SnapPolygonMode.onSetup = function (options) {
     getGuideFeature(IDS.HORIZONTAL_GUIDE)
   );
 
-  this.addFeature(polygon);
+  this.addFeature(feature);
   this.addFeature(verticalGuide);
   this.addFeature(horizontalGuide);
 
@@ -41,18 +41,30 @@ SnapPolygonMode.onSetup = function (options) {
 
   const [snapList, vertices] = createSnapList(this.map, draw, polygon);
 
+  // const [snapList, vertices] = createSnapList(this.map, this._ctx.api, polygon);
+  let layers = this.map.getStyle().layers;
+  const targetLayers = layers.filter(layerInfo => {
+    const { type, source } = layerInfo;
+    if ((source !== 'mapbox-gl-draw-cold' && source !== 'mapbox-gl-draw-hot') && (type === 'circle' || type === 'line' || type === 'fill')) {
+      return true;
+    };
+  });
+  let targetLayersId = targetLayers.map((layerInfo) => {
+    return layerInfo.id;
+  });
   const state = {
     map: this.map,
-    polygon,
+    feature,
+    polygon: feature,
+    prevQueryBbox: null,
     currentVertexPosition: 0,
-    vertices,
-    snapList,
+    targetLayersId,
     selectedFeatures,
     verticalGuide,
     horizontalGuide,
   };
 
-  /// Adding default options
+  // Adding default options
   state.options = Object.assign(this._ctx.options, {
     overlap: true,
   });
@@ -76,7 +88,6 @@ SnapPolygonMode.onSetup = function (options) {
   // for removing listener later on close
   state["optionsChangedCallBAck"] = optionsChangedCallBAck;
 
-  this.map.on("moveend", updateSnapList);
   this.map.on("draw.snap.options_changed", optionsChangedCallBAck);
 
   return state;
@@ -90,13 +101,13 @@ SnapPolygonMode.onClick = function (state) {
   // End the drawing if this click is on the previous position
   if (state.currentVertexPosition > 0) {
     const lastVertex =
-      state.polygon.coordinates[0][state.currentVertexPosition - 1];
+      state.feature.coordinates[0][state.currentVertexPosition - 1];
 
     state.lastVertex = lastVertex;
 
     if (lastVertex[0] === lng && lastVertex[1] === lat) {
       return this.changeMode(modes.SIMPLE_SELECT, {
-        featureIds: [state.polygon.id],
+        featureIds: [state.feature.id],
       });
     }
   }
@@ -105,17 +116,34 @@ SnapPolygonMode.onClick = function (state) {
 
   addPointTovertices(state.map, state.vertices, { lng, lat });
 
-  state.polygon.updateCoordinate(`0.${state.currentVertexPosition}`, lng, lat);
+  state.feature.updateCoordinate(`0.${state.currentVertexPosition}`, lng, lat);
 
   state.currentVertexPosition++;
 
-  state.polygon.updateCoordinate(`0.${state.currentVertexPosition}`, lng, lat);
+  state.feature.updateCoordinate(`0.${state.currentVertexPosition}`, lng, lat);
 };
 
 SnapPolygonMode.onMouseMove = function (state, e) {
+  state.halfSize = ((state.options.snapOptions && state.options.snapOptions.cacheSize) || 100) / 2;
+  const halfCacheSize = state.halfSize - 15;
+  const { x, y } = e.point;
+  if (!state.prevQueryBbox || (state.prevQueryBbox && !(state.prevQueryBbox[0] < x && state.prevQueryBbox[2] > x && state.prevQueryBbox[1] < y && state.prevQueryBbox[3] > y))) {
+    const [snapList, vertices] = createSnapList(state, this._ctx.api, e);
+
+    state.snapList = snapList;
+
+    state.vertices = vertices;
+
+    state.prevQueryBbox = [
+      x - halfCacheSize,
+      y - halfCacheSize,
+      x + halfCacheSize,
+      y + halfCacheSize
+    ]
+  }
   const { lng, lat } = snap(state, e);
 
-  state.polygon.updateCoordinate(`0.${state.currentVertexPosition}`, lng, lat);
+  state.feature.updateCoordinate(`0.${state.currentVertexPosition}`, lng, lat);
   state.snappedLng = lng;
   state.snappedLat = lat;
 
@@ -150,11 +178,9 @@ SnapPolygonMode.onStop = function (state) {
   this.deleteFeature(IDS.VERTICAL_GUIDE, { silent: true });
   this.deleteFeature(IDS.HORIZONTAL_GUIDE, { silent: true });
 
-  // remove moveemd callback
-  this.map.off("moveend", state.updateSnapList);
   this.map.off("draw.snap.options_changed", state.optionsChangedCallBAck);
 
-  var userPolygon = state.polygon;
+  var userPolygon = state.feature;
   if (state.options.overlap) {
     DrawPolygon.onStop.call(this, state);
     return;
@@ -170,21 +196,21 @@ SnapPolygonMode.onStop = function (state) {
       if (!booleanIntersects(feature, edited)) return;
       edited = turf.difference(edited, feature);
     });
-    state.polygon.coordinates =
+    state.feature.coordinates =
       edited.coordinates || edited.geometry.coordinates;
   } catch (err) {
     // cancel this polygon if a difference cannot be calculated
     DrawPolygon.onStop.call(this, state);
-    this.deleteFeature([state.polygon.id], { silent: true });
+    this.deleteFeature([state.feature.id], { silent: true });
     return;
   }
 
   // monkeypatch so DrawPolygon.onStop doesn't error
-  var rc = state.polygon.removeCoordinate;
-  state.polygon.removeCoordinate = () => {};
+  var rc = state.feature.removeCoordinate;
+  state.feature.removeCoordinate = () => {};
   // This relies on the the state of SnapPolygonMode being similar to DrawPolygon
   DrawPolygon.onStop.call(this, state);
-  state.polygon.removeCoordinate = rc.bind(state.polygon);
+  state.feature.removeCoordinate = rc.bind(state.feature);
 };
 
 export default SnapPolygonMode;
