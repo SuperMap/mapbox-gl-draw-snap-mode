@@ -36,10 +36,11 @@ SnapPolygonMode.onSetup = function (options) {
   const selectedFeatures = this.getSelected();
   this.clearSelectedFeatures();
   doubleClickZoom.disable(this);
+  const draw = this._ctx.api;
 
   const [snapList, vertices] = createSnapList(
     this.map,
-    this._ctx.api,
+    draw,
     polygon,
     this._ctx.options.snapOptions?.snapGetFeatures
   );
@@ -60,10 +61,10 @@ SnapPolygonMode.onSetup = function (options) {
     overlap: true,
   });
 
-  const moveendCallback = () => {
+  const updateSnapList = () => {
     const [snapList, vertices] = createSnapList(
       this.map,
-      this._ctx.api,
+      draw,
       polygon,
       this._ctx.options.snapOptions?.snapGetFeatures
     );
@@ -71,8 +72,8 @@ SnapPolygonMode.onSetup = function (options) {
     state.snapList = snapList;
   };
   // for removing listener later on close
-  state["moveendCallback"] = moveendCallback;
-
+  state["updateSnapList"] = updateSnapList;
+  Object.assign(draw, { updateSnapList });
   const optionsChangedCallback = (options) => {
     state.options = options;
   };
@@ -80,7 +81,7 @@ SnapPolygonMode.onSetup = function (options) {
   // for removing listener later on close
   state["optionsChangedCallback"] = optionsChangedCallback;
 
-  this.map.on("moveend", moveendCallback);
+  this.map.on("moveend", updateSnapList);
   this.map.on("draw.snap.options_changed", optionsChangedCallback);
 
   return state;
@@ -155,7 +156,7 @@ SnapPolygonMode.onStop = function (state) {
   this.deleteFeature(IDS.HORIZONTAL_GUIDE, { silent: true });
 
   // remove moveend callback
-  this.map.off("moveend", state.moveendCallback);
+  this.map.off("moveend", state.updateSnapList);
   this.map.off("draw.snap.options_changed", state.optionsChangedCallback);
 
   var userPolygon = state.polygon;
