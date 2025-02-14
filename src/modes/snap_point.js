@@ -18,7 +18,7 @@ SnapPointMode.onSetup = function (options) {
     properties: {},
     geometry: {
       type: geojsonTypes.POINT,
-      coordinates: [[]],
+      coordinates: [], //(MultiPoint的数据结构才是：[[]])这里修改为与DrawPoint.onSetup中相同的值，DrawPoint.onStop中会根据coordinates.length判断是否删除该要素
     },
   });
 
@@ -79,12 +79,13 @@ SnapPointMode.onSetup = function (options) {
   return state;
 };
 
-SnapPointMode.onClick = function (state) {
+// [bug] 解决MS中的连续绘制，很快速的点击地图进行绘制时报错的问题（仅enhance包会有此问题）：Uncaught TypeError: Cannot read properties of undefined (reading 'data')
+SnapPointMode.onClick = function (state, e) {
   // We mock out e with the rounded lng/lat then call DrawPoint with it
   DrawPoint.onClick.call(this, state, {
     lngLat: {
-      lng: state.snappedLng,
-      lat: state.snappedLat,
+      lng: state.snappedLng ?? e.lngLat.lng,
+      lat: state.snappedLat ?? e.lngLat.lat,
     },
   });
 };
