@@ -9,6 +9,7 @@ import { getCoords } from "@turf/invariant";
 import distance from "@turf/distance";
 import polygonToLine from "@turf/polygon-to-line";
 import nearestPointOnLine from "@turf/nearest-point-on-line";
+import cleanCoords from "@turf/clean-coords";
 import nearestPointInPointSet from "@turf/nearest-point";
 import midpoint from "@turf/midpoint";
 import {
@@ -218,7 +219,9 @@ const calcLayerDistances = (lngLat, layer) => {
     lines = closestFeature.feature;
     nearestPoint = closestFeature.point;
   } else {
-    nearestPoint = nearestPointOnLine(lines, P);
+    // nearestPointOnLine接口在feature内有相同坐标的情况下会报错，需要用cleanCoords处理
+    const cleanedFeat = cleanCoords(lines);
+    nearestPoint = nearestPointOnLine(cleanedFeat, P);
   }
 
   const [lng, lat] = nearestPoint.geometry.coordinates;
@@ -243,10 +246,13 @@ const calcLayerDistances = (lngLat, layer) => {
 };
 
 function getFeatureWithNearestPoint(lineStrings, P) {
-  const nearestPointsOfEachFeature = lineStrings.map((feat) => ({
-    feature: feat,
-    point: nearestPointOnLine(feat, P),
-  }));
+  const nearestPointsOfEachFeature = lineStrings.map((feat) => {
+    const cleanedFeat = cleanCoords(feat);
+    return {
+      feature: cleanedFeat,
+      point: nearestPointOnLine(cleanedFeat, P),
+    }
+  });
 
   nearestPointsOfEachFeature.sort(
     (a, b) => a.point.properties.dist - b.point.properties.dist
@@ -295,8 +301,17 @@ const metersPerPixel = function (latitude, zoomLevel) {
 function snapToLineOrPolygon(
   closestLayer,
   snapOptions,
-  snapVertexPriorityDistance
+  snapVertexPriorityDistance,
+  lngLat
 ) {
+  const { 
+    snapToMidPoints = false,
+    snapToNodes = true,
+    snapToEndPoints = true,
+    snapToLines = true,
+  } = snapOptions ?? {};
+  const geometry = closestLayer.layer.geometry;
+  
   // A and B are the points of the closest segment to P (the marker position we want to snap)
   const A = closestLayer.segment[0];
   const B = closestLayer.segment[1];
@@ -314,9 +329,9 @@ function snapToLineOrPolygon(
 
   // distance between closestVertexLatLng and C
   let shortestDistance = distanceAC < distanceBC ? distanceAC : distanceBC;
-
   // snap to middle (M) of segment if option is enabled
-  if (snapOptions && snapOptions.snapToMidPoints) {
+  let isMiddlePoint = false;
+  if (snapToMidPoints) {
     const M = midpoint(A, B).geometry.coordinates;
     const distanceMC = distance(M, C);
 
@@ -324,21 +339,42 @@ function snapToLineOrPolygon(
       // M is the nearest vertex
       closestVertexLatLng = M;
       shortestDistance = distanceMC;
+      isMiddlePoint = true
     }
   }
 
   // the distance that needs to be undercut to trigger priority
   const priorityDistance = snapVertexPriorityDistance;
 
-  // the latlng we ultimately want to snap to
+  // 线段的端点坐标
+  const endPoints = geometry.type === "LineString" ? [geometry.coordinates[0], geometry.coordinates[geometry.coordinates.length - 1]] : [];
+  // 判断是否为端点
+  const isEndPoint = endPoints.find((point) => {
+    return point[0] === closestVertexLatLng[0] && point[1] === closestVertexLatLng[1];
+  });
+  // the latlng we ultemately want to snap to
   let snapLatlng;
 
   // if C is closer to the closestVertexLatLng (A, B or M) than the snapDistance,
   // the closestVertexLatLng has priority over C as the snapping point.
-  if (shortestDistance < priorityDistance) {
-    snapLatlng = closestVertexLatLng;
+// 当最短距离大于或等于最优距离且启用了 snapToLines 时，使用 C 点进行捕捉，否则不捕捉
+  if (shortestDistance >= priorityDistance) {
+    snapLatlng = snapToLines ? C : lngLat;
   } else {
-    snapLatlng = C;
+    // 如果没有开启 snapToNodes、snapToMidPoints 和 snapToEndPoints，则不进行捕捉
+    // 如果没有开启 snapToNodes 和 snapToMidPoints，但开启了 snapToEndPoints，则捕捉到端点
+    const shouldSnapToLngLat = 
+      // 确保不是中间点
+      !isMiddlePoint &&
+      // 确保没有捕捉到节点
+      !snapToNodes &&
+      (
+        // 如果启用了捕捉到端点，且不是端点
+        (snapToEndPoints && !isEndPoint) ||
+        // 如果禁用了捕捉到端点
+        !snapToEndPoints                     
+      );
+    snapLatlng = shouldSnapToLngLat ? lngLat : closestVertexLatLng;
   }
 
   // return the copy of snapping point
@@ -353,7 +389,8 @@ function snapToPoint(closestLayer) {
 const checkPrioritySnapping = (
   closestLayer,
   snapOptions,
-  snapVertexPriorityDistance = 1.25
+  snapVertexPriorityDistance = 1.25,
+  lngLat
 ) => {
   let snappingToPoint = !Array.isArray(closestLayer.segment);
   if (snappingToPoint) {
@@ -362,7 +399,8 @@ const checkPrioritySnapping = (
     return snapToLineOrPolygon(
       closestLayer,
       snapOptions,
-      snapVertexPriorityDistance
+      snapVertexPriorityDistance,
+      lngLat
     );
   }
 };
@@ -412,7 +450,8 @@ export const snap = (state, e) => {
       snapLatLng = checkPrioritySnapping(
         closestLayer,
         state.options.snapOptions,
-        snapVertexPriorityDistance
+        snapVertexPriorityDistance,
+        [ lng, lat ]
       );
       // snapLatLng = closestLayer.latlng;
     } else {

@@ -53,11 +53,11 @@ SnapPointMode.onSetup = function (options) {
   };
 
   state.options = this._ctx.options;
-
-  const moveendCallback = () => {
+  const draw = this._ctx.api;
+  const updateSnapList = () => {
     const [snapList, vertices] = createSnapList(
       this.map,
-      this._ctx.api,
+      draw,
       point,
       this._ctx.options.snapOptions?.snapGetFeatures
     );
@@ -65,7 +65,8 @@ SnapPointMode.onSetup = function (options) {
     state.snapList = snapList;
   };
   // for removing listener later on close
-  state["moveendCallback"] = moveendCallback;
+  state["updateSnapList"] = updateSnapList;
+  Object.assign(draw, { updateSnapList });
 
   const optionsChangedCallback = (options) => {
     state.options = options;
@@ -73,7 +74,7 @@ SnapPointMode.onSetup = function (options) {
   // for removing listener later on close
   state["optionsChangedCallback"] = optionsChangedCallback;
 
-  this.map.on("moveend", moveendCallback);
+  this.map.on("moveend", updateSnapList);
   this.map.on("draw.snap.options_changed", optionsChangedCallback);
 
   return state;
@@ -128,7 +129,7 @@ SnapPointMode.onStop = function (state) {
   this.deleteFeature(IDS.HORIZONTAL_GUIDE, { silent: true });
 
   // remove moveend callback
-  this.map.off("moveend", state.moveendCallback);
+  this.map.off("moveend", state.updateSnapList);
 
   // This relies on the the state of SnapPointMode having a 'point' prop
   DrawPoint.onStop.call(this, state);
