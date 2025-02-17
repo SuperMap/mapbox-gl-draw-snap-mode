@@ -86,11 +86,11 @@ SnapPolygonMode.onSetup = function (options) {
 
   return state;
 };
-
-SnapPolygonMode.onClick = function (state) {
+//  MS 中切换为 该模式时，立刻快速点击地图，控制台报错Uncaught Error: Invalid LngLat object: (NaN, NaN)
+SnapPolygonMode.onClick = function (state, e) {
   // We save some processing by rounding on click, not mousemove
-  const lng = state.snappedLng;
-  const lat = state.snappedLat;
+  const lng = state.snappedLng ?? e.lngLat.lng;
+  const lat = state.snappedLat ?? e.lngLat.lat;
 
   // End the drawing if this click is on the previous position
   if (state.currentVertexPosition > 0) {

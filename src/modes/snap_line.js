@@ -83,10 +83,10 @@ SnapLineMode.onSetup = function (options) {
   return state;
 };
 
-SnapLineMode.onClick = function (state) {
+SnapLineMode.onClick = function (state, e) {
   // We save some processing by rounding on click, not mousemove
-  const lng = state.snappedLng;
-  const lat = state.snappedLat;
+  const lng = state.snappedLng ?? e.lngLat.lng;
+  const lat = state.snappedLat ?? e.lngLat.lat;
 
   // End the drawing if this click is on the previous position
   // Note: not bothering with 'direction'
