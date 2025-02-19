@@ -39,7 +39,7 @@ SnapLineMode.onSetup = function (options) {
   const [snapList, vertices] = createSnapList(
     this.map,
     this._ctx.api,
-    line,
+    { currentFeature: line },
     this._ctx.options.snapOptions?.snapGetFeatures
   );
 
@@ -57,20 +57,21 @@ SnapLineMode.onSetup = function (options) {
 
   state.options = this._ctx.options;
   const draw = this._ctx.api;
-
-  const updateSnapList = () => {
+  const updateSnapList = (e) => {
+    const params = {
+      currentFeature: state.line,
+      snapFeatures: state.options.snapOptions?.snapFeatures
+    };
     const [snapList, vertices] = createSnapList(
       this.map,
       draw,
-      line,
-      this._ctx.options.snapOptions?.snapGetFeatures
+      params,
+      state.options.snapOptions?.snapGetFeatures
     );
     state.vertices = vertices;
     state.snapList = snapList;
   };
-  // for removing listener later on close
-  state["updateSnapList"] = updateSnapList;
-  Object.assign(draw, { updateSnapList });
+
   const optionsChangedCallback = (options) => {
     state.options = options;
   };
@@ -114,6 +115,20 @@ SnapLineMode.onClick = function (state, e) {
 };
 
 SnapLineMode.onMouseMove = function (state, e) {
+  const draw = this._ctx.api;
+  const params = {
+    currentFeature: state.line,
+    snapFeatures: state.options.snapOptions?.snapFeatures
+  };
+  const [snapList, vertices] = createSnapList(
+    this.map,
+    draw,
+    params,
+    this._ctx.options.snapOptions?.snapGetFeatures
+  );
+  state.vertices = vertices;
+  state.snapList = snapList;
+
   const { lng, lat } = snap(state, e);
 
   state.line.updateCoordinate(state.currentVertexPosition, lng, lat);

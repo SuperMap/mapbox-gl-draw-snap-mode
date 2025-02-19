@@ -37,11 +37,14 @@ SnapPolygonMode.onSetup = function (options) {
   this.clearSelectedFeatures();
   doubleClickZoom.disable(this);
   const draw = this._ctx.api;
-
+  const params = {
+    currentFeature: polygon,
+    snapFeatures: this._ctx.options.snapOptions?.snapFeatures
+  };
   const [snapList, vertices] = createSnapList(
     this.map,
     draw,
-    polygon,
+    params,
     this._ctx.options.snapOptions?.snapGetFeatures
   );
 
@@ -61,19 +64,20 @@ SnapPolygonMode.onSetup = function (options) {
     overlap: true,
   });
 
-  const updateSnapList = () => {
+  const updateSnapList = (e) => {
+    const params = {
+      currentFeature: polygon,
+      snapFeatures: state.options.snapOptions?.snapFeatures
+    };
     const [snapList, vertices] = createSnapList(
       this.map,
       draw,
-      polygon,
+      params,
       this._ctx.options.snapOptions?.snapGetFeatures
     );
     state.vertices = vertices;
     state.snapList = snapList;
   };
-  // for removing listener later on close
-  state["updateSnapList"] = updateSnapList;
-  Object.assign(draw, { updateSnapList });
   const optionsChangedCallback = (options) => {
     state.options = options;
   };
@@ -118,6 +122,21 @@ SnapPolygonMode.onClick = function (state, e) {
 };
 
 SnapPolygonMode.onMouseMove = function (state, e) {
+  const draw = this._ctx.api;
+  const params = {
+    currentFeature: state.polygon,
+    snapFeatures: state.options.snapOptions?.snapFeatures
+  };
+  const [snapList, vertices] = createSnapList(
+    this.map,
+    draw,
+    params,
+    this._ctx.options.snapOptions?.snapGetFeatures
+  );
+  state.vertices = vertices;
+  state.snapList = snapList;
+
+
   const { lng, lat } = snap(state, e);
 
   state.polygon.updateCoordinate(`0.${state.currentVertexPosition}`, lng, lat);

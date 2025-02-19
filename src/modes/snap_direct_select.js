@@ -26,7 +26,7 @@ SnapDirectSelect.onSetup = function (opts) {
   const [snapList, vertices] = createSnapList(
     this.map,
     this._ctx.api,
-    feature,
+    { currentFeature: feature },
     this._ctx.options.snapOptions?.snapGetFeatures
   );
 
@@ -63,14 +63,6 @@ SnapDirectSelect.onSetup = function (opts) {
   this.setActionableState({
     trash: true,
   });
-  const draw = this._ctx.api;
-  const updateSnapList = () => {
-    const [snapList, vertices] = createSnapList(this.map, draw, feature);
-    state.vertices = vertices;
-    state.snapList = snapList;
-  };
-  Object.assign(draw, { updateSnapList });
-  
 
   const optionsChangedCallback = (options) => {
     state.options = options;
@@ -83,7 +75,21 @@ SnapDirectSelect.onSetup = function (opts) {
   return state;
 };
 
-SnapDirectSelect.dragVertex = function (state, e, delta) {
+SnapDirectSelect.dragVertex = function (state, e) {
+  const draw = this._ctx.api;
+  const params = {
+    currentFeature: state.feature,
+    snapFeatures: state.options.snapOptions?.snapFeatures
+  };
+  const [snapList, vertices] = createSnapList(
+    this.map,
+    draw,
+    params,
+    this._ctx.options.snapOptions?.snapGetFeatures
+  );
+  state.vertices = vertices;
+  state.snapList = snapList;
+
   const { lng, lat } = snap(state, e);
 
   state.feature.updateCoordinate(state.selectedCoordPaths[0], lng, lat);
