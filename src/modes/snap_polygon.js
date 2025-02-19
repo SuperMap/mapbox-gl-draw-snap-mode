@@ -41,7 +41,7 @@ SnapPolygonMode.onSetup = function (options) {
   const [snapList, vertices] = createSnapList(
     this.map,
     draw,
-    polygon,
+    { currentFeature: polygon },
     this._ctx.options.snapOptions?.snapGetFeatures
   );
 
@@ -61,19 +61,6 @@ SnapPolygonMode.onSetup = function (options) {
     overlap: true,
   });
 
-  const updateSnapList = () => {
-    const [snapList, vertices] = createSnapList(
-      this.map,
-      draw,
-      polygon,
-      this._ctx.options.snapOptions?.snapGetFeatures
-    );
-    state.vertices = vertices;
-    state.snapList = snapList;
-  };
-  // for removing listener later on close
-  state["updateSnapList"] = updateSnapList;
-  Object.assign(draw, { updateSnapList });
   const optionsChangedCallback = (options) => {
     state.options = options;
   };
@@ -81,7 +68,6 @@ SnapPolygonMode.onSetup = function (options) {
   // for removing listener later on close
   state["optionsChangedCallback"] = optionsChangedCallback;
 
-  this.map.on("moveend", updateSnapList);
   this.map.on("draw.snap.options_changed", optionsChangedCallback);
 
   return state;
@@ -118,6 +104,24 @@ SnapPolygonMode.onClick = function (state, e) {
 };
 
 SnapPolygonMode.onMouseMove = function (state, e) {
+  const snapLayerIds = state.options.snapOptions?.snapLayerIds ?? [];
+  const lnglat = e.point;
+  const draw = this._ctx.api;
+  const params = {
+    currentFeature: state.polygon,
+    snapLayerIds,
+    lnglat
+  };
+  const [snapList, vertices] = createSnapList(
+    this.map,
+    draw,
+    params,
+    this._ctx.options.snapOptions?.snapGetFeatures
+  );
+  state.vertices = vertices;
+  state.snapList = snapList;
+
+
   const { lng, lat } = snap(state, e);
 
   state.polygon.updateCoordinate(`0.${state.currentVertexPosition}`, lng, lat);
@@ -155,8 +159,6 @@ SnapPolygonMode.onStop = function (state) {
   this.deleteFeature(IDS.VERTICAL_GUIDE, { silent: true });
   this.deleteFeature(IDS.HORIZONTAL_GUIDE, { silent: true });
 
-  // remove moveend callback
-  this.map.off("moveend", state.updateSnapList);
   this.map.off("draw.snap.options_changed", state.optionsChangedCallback);
 
   var userPolygon = state.polygon;

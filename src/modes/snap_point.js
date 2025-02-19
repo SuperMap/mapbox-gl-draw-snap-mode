@@ -38,7 +38,7 @@ SnapPointMode.onSetup = function (options) {
   const [snapList, vertices] = createSnapList(
     this.map,
     this._ctx.api,
-    point,
+    { currentFeature: point },
     this._ctx.options.snapOptions?.snapGetFeatures
   );
 
@@ -53,20 +53,6 @@ SnapPointMode.onSetup = function (options) {
   };
 
   state.options = this._ctx.options;
-  const draw = this._ctx.api;
-  const updateSnapList = () => {
-    const [snapList, vertices] = createSnapList(
-      this.map,
-      draw,
-      point,
-      this._ctx.options.snapOptions?.snapGetFeatures
-    );
-    state.vertices = vertices;
-    state.snapList = snapList;
-  };
-  // for removing listener later on close
-  state["updateSnapList"] = updateSnapList;
-  Object.assign(draw, { updateSnapList });
 
   const optionsChangedCallback = (options) => {
     state.options = options;
@@ -74,7 +60,6 @@ SnapPointMode.onSetup = function (options) {
   // for removing listener later on close
   state["optionsChangedCallback"] = optionsChangedCallback;
 
-  this.map.on("moveend", updateSnapList);
   this.map.on("draw.snap.options_changed", optionsChangedCallback);
 
   return state;
@@ -92,6 +77,23 @@ SnapPointMode.onClick = function (state, e) {
 };
 
 SnapPointMode.onMouseMove = function (state, e) {
+  const snapLayerIds = state.options.snapOptions?.snapLayerIds ?? [];
+  const lnglat = e.point;
+  const draw = this._ctx.api;
+  const params = {
+    currentFeature: state.point,
+    snapLayerIds,
+    lnglat
+  };
+  const [snapList, vertices] = createSnapList(
+    this.map,
+    draw,
+    params,
+    this._ctx.options.snapOptions?.snapGetFeatures
+  );
+  state.vertices = vertices;
+  state.snapList = snapList;
+
   const { lng, lat } = snap(state, e);
 
   state.snappedLng = lng;
@@ -127,9 +129,6 @@ SnapPointMode.toDisplayFeatures = function (state, geojson, display) {
 SnapPointMode.onStop = function (state) {
   this.deleteFeature(IDS.VERTICAL_GUIDE, { silent: true });
   this.deleteFeature(IDS.HORIZONTAL_GUIDE, { silent: true });
-
-  // remove moveend callback
-  this.map.off("moveend", state.updateSnapList);
 
   // This relies on the the state of SnapPointMode having a 'point' prop
   DrawPoint.onStop.call(this, state);

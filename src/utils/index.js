@@ -35,10 +35,10 @@ const getFormattedPolygonFeature = (feature) => {
       const x = selectedPoint[0];
       const y = selectedPoint[1];
       coordinates = [
-        feature.coordinates[0].filter((point)=>{
-        return point[0] !==x && point[1] !== y;
-      })
-    ];
+        feature.coordinates[0].filter((point) => {
+          return point[0] !== x && point[1] !== y;
+        })
+      ];
     } else {
       coordinates = feature.coordinates;
     }
@@ -49,7 +49,7 @@ const getFormattedPolygonFeature = (feature) => {
   return {
     id: feature.id,
     properties: feature.properties,
-    geometry: { 
+    geometry: {
       coordinates,
       type: feature.type
     },
@@ -67,7 +67,7 @@ const getFormattedMultiPolygonFeatures = (feature) => {
     if (feat.type === 'MultiPolygon') {
       const feautures = getFormattedMultiPolygonFeatures(feat);
       currentFeatures.push(...feautures);
-    } 
+    }
   });
   return currentFeatures
 };
@@ -83,7 +83,7 @@ const getFormattedLineFeature = (feature) => {
     if (selectedPoint) {
       const x = selectedPoint[0];
       const y = selectedPoint[1];
-      coordinates = feature.coordinates.filter((point)=>{
+      coordinates = feature.coordinates.filter((point) => {
         return point[0] !== x && point[1] !== y;
       });
     } else {
@@ -97,7 +97,7 @@ const getFormattedLineFeature = (feature) => {
   return {
     id: feature.id,
     properties: feature.properties,
-    geometry: { 
+    geometry: {
       coordinates,
       type: feature.type
     },
@@ -138,7 +138,31 @@ export const addPointToVertices = (
   }
 };
 
-export const createSnapList = (map, draw, currentFeature, getFeatures) => {
+
+export const createSnapList = (map, draw, params, getFeatures) => {
+  const currentFeature = params.currentFeature;
+  const lnglat = params.lnglat;
+  let snapFeatures = []
+  if (lnglat) {
+    const snapSize = 10;
+    const queryBbox = [
+      lnglat.x - snapSize,
+      lnglat.y - snapSize,
+      lnglat.x + snapSize,
+      lnglat.y + snapSize
+    ];
+    snapFeatures = map.queryRenderedFeatures([[queryBbox[0], queryBbox[1]], [queryBbox[2], queryBbox[3]]], {
+      layers: params.snapLayerIds
+    }).map((f,index) => {
+      return {
+        id: 'rendered-snap-feature-' + f.id ?? f.properties['smpid'] ?? index,
+        properties: f.properties,
+        type: "Feature",
+        geometry: f.geometry
+      }
+    });
+  }
+
   // Get all features
   let features = [];
 
@@ -149,6 +173,7 @@ export const createSnapList = (map, draw, currentFeature, getFeatures) => {
   if (!Array.isArray(features) || features.length === 0) {
     features = draw.getAll().features;
   }
+  features = snapFeatures.length ? [...features, ...snapFeatures] : features;
 
   const snapList = [];
 
@@ -219,23 +244,23 @@ export const createSnapList = (map, draw, currentFeature, getFeatures) => {
     // 判断是否已经绘制出了一个线段
     if (currentFeature.coordinates?.[0]?.length > 2) {
       const currentFeat = getFormattedPolygonFeature(currentFeature);
-      return [[...snapList, currentFeat ], vertices];
+      return [[...snapList, currentFeat], vertices];
     }
   }
   if (currentFeature.type === 'LineString') {
     // 判断是否已经绘制出了一个线段
     if (currentFeature.coordinates?.length > 2) {
       const currentFeat = getFormattedLineFeature(currentFeature);
-      return [[...snapList, currentFeat ], vertices];
+      return [[...snapList, currentFeat], vertices];
     }
   }
   if (currentFeature.type === "MultiPolygon") {
-      const currentFeatures = getFormattedMultiPolygonFeatures(currentFeature);
-      return [[...snapList, ...currentFeatures ], vertices];
+    const currentFeatures = getFormattedMultiPolygonFeatures(currentFeature);
+    return [[...snapList, ...currentFeatures], vertices];
   }
   if (currentFeature.type === "MultiLineString") {
     const currentFeatures = getFormattedMultiLineFeatures(currentFeature);
-    return [[...snapList, ...currentFeatures ], vertices];
+    return [[...snapList, ...currentFeatures], vertices];
   }
   return [snapList, vertices];
 };
@@ -423,14 +448,14 @@ function snapToLineOrPolygon(
   snapVertexPriorityDistance,
   lngLat
 ) {
-  const { 
+  const {
     snapToMidPoints = false,
     snapToNodes = true,
     snapToEndPoints = true,
     snapToLines = true,
   } = snapOptions ?? {};
   const geometry = closestLayer.layer.geometry;
-  
+
   // A and B are the points of the closest segment to P (the marker position we want to snap)
   const A = closestLayer.segment[0];
   const B = closestLayer.segment[1];
@@ -476,13 +501,13 @@ function snapToLineOrPolygon(
 
   // if C is closer to the closestVertexLatLng (A, B or M) than the snapDistance,
   // the closestVertexLatLng has priority over C as the snapping point.
-// 当最短距离大于或等于最优距离且启用了 snapToLines 时，使用 C 点进行捕捉，否则不捕捉
+  // 当最短距离大于或等于最优距离且启用了 snapToLines 时，使用 C 点进行捕捉，否则不捕捉
   if (shortestDistance >= priorityDistance) {
     snapLatlng = snapToLines ? C : lngLat;
   } else {
     // 如果没有开启 snapToNodes、snapToMidPoints 和 snapToEndPoints，则不进行捕捉
     // 如果没有开启 snapToNodes 和 snapToMidPoints，但开启了 snapToEndPoints，则捕捉到端点
-    const shouldSnapToLngLat = 
+    const shouldSnapToLngLat =
       // 确保不是中间点
       !isMiddlePoint &&
       // 确保没有捕捉到节点
@@ -491,7 +516,7 @@ function snapToLineOrPolygon(
         // 如果启用了捕捉到端点，且不是端点
         (snapToEndPoints && !isEndPoint) ||
         // 如果禁用了捕捉到端点
-        !snapToEndPoints                     
+        !snapToEndPoints
       );
     snapLatlng = shouldSnapToLngLat ? lngLat : closestVertexLatLng;
   }
@@ -570,7 +595,7 @@ export const snap = (state, e) => {
         closestLayer,
         state.options.snapOptions,
         snapVertexPriorityDistance,
-        [ lng, lat ]
+        [lng, lat]
       );
       // snapLatLng = closestLayer.latlng;
     } else {

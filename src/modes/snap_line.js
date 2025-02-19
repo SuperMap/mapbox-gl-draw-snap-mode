@@ -39,7 +39,7 @@ SnapLineMode.onSetup = function (options) {
   const [snapList, vertices] = createSnapList(
     this.map,
     this._ctx.api,
-    line,
+    { currentFeature: line },
     this._ctx.options.snapOptions?.snapGetFeatures
   );
 
@@ -56,28 +56,13 @@ SnapLineMode.onSetup = function (options) {
   };
 
   state.options = this._ctx.options;
-  const draw = this._ctx.api;
-
-  const updateSnapList = () => {
-    const [snapList, vertices] = createSnapList(
-      this.map,
-      draw,
-      line,
-      this._ctx.options.snapOptions?.snapGetFeatures
-    );
-    state.vertices = vertices;
-    state.snapList = snapList;
-  };
-  // for removing listener later on close
-  state["updateSnapList"] = updateSnapList;
-  Object.assign(draw, { updateSnapList });
+  // Object.assign(draw, { updateSnapList });
   const optionsChangedCallback = (options) => {
     state.options = options;
   };
   // for removing listener later on close
   state["optionsChangedCallback"] = optionsChangedCallback;
 
-  this.map.on("moveend", updateSnapList);
   this.map.on("draw.snap.options_changed", optionsChangedCallback);
 
   return state;
@@ -114,6 +99,23 @@ SnapLineMode.onClick = function (state, e) {
 };
 
 SnapLineMode.onMouseMove = function (state, e) {
+  const snapLayerIds = state.options.snapOptions?.snapLayerIds ?? [];
+  const lnglat = e.point;
+  const draw = this._ctx.api;
+  const params = {
+    currentFeature: state.line,
+    snapLayerIds,
+    lnglat
+  };
+  const [snapList, vertices] = createSnapList(
+    this.map,
+    draw,
+    params,
+    this._ctx.options.snapOptions?.snapGetFeatures
+  );
+  state.vertices = vertices;
+  state.snapList = snapList;
+
   const { lng, lat } = snap(state, e);
 
   state.line.updateCoordinate(state.currentVertexPosition, lng, lat);
@@ -150,9 +152,6 @@ SnapLineMode.toDisplayFeatures = function (state, geojson, display) {
 SnapLineMode.onStop = function (state) {
   this.deleteFeature(IDS.VERTICAL_GUIDE, { silent: true });
   this.deleteFeature(IDS.HORIZONTAL_GUIDE, { silent: true });
-
-  // remove moveend callback
-  this.map.off("moveend", state.updateSnapList);
 
   // This relies on the the state of SnapLineMode being similar to DrawLine
   DrawLine.onStop.call(this, state);

@@ -26,7 +26,7 @@ SnapDirectSelect.onSetup = function (opts) {
   const [snapList, vertices] = createSnapList(
     this.map,
     this._ctx.api,
-    feature,
+    { currentFeature: feature },
     this._ctx.options.snapOptions?.snapGetFeatures
   );
 
@@ -63,14 +63,6 @@ SnapDirectSelect.onSetup = function (opts) {
   this.setActionableState({
     trash: true,
   });
-  const draw = this._ctx.api;
-  const updateSnapList = () => {
-    const [snapList, vertices] = createSnapList(this.map, draw, feature);
-    state.vertices = vertices;
-    state.snapList = snapList;
-  };
-  Object.assign(draw, { updateSnapList });
-  
 
   const optionsChangedCallback = (options) => {
     state.options = options;
@@ -84,6 +76,23 @@ SnapDirectSelect.onSetup = function (opts) {
 };
 
 SnapDirectSelect.dragVertex = function (state, e, delta) {
+  const snapLayerIds = state.options.snapOptions?.snapLayerIds ?? [];
+  const lnglat = e.point;
+  const draw = this._ctx.api;
+  const params = {
+    currentFeature: state.feature,
+    snapLayerIds,
+    lnglat
+  };
+  const [snapList, vertices] = createSnapList(
+    this.map,
+    draw,
+    params,
+    this._ctx.options.snapOptions?.snapGetFeatures
+  );
+  state.vertices = vertices;
+  state.snapList = snapList;
+
   const { lng, lat } = snap(state, e);
 
   state.feature.updateCoordinate(state.selectedCoordPaths[0], lng, lat);
@@ -93,8 +102,6 @@ SnapDirectSelect.onStop = function (state) {
   this.deleteFeature(IDS.VERTICAL_GUIDE, { silent: true });
   this.deleteFeature(IDS.HORIZONTAL_GUIDE, { silent: true });
 
-  // remove moveend callback
-  //   this.map.off("moveend", state.moveendCallback);
   this.map.off("draw.snap.options_changed", state.optionsChangedCallback);
 
   // This relies on the the state of SnapPolygonMode being similar to DrawPolygon
