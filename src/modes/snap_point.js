@@ -74,7 +74,7 @@ SnapPointMode.onSetup = function (options) {
   };
   // for removing listener later on close
   state["optionsChangedCallback"] = optionsChangedCallback;
-
+  state["updateSnapList"] = updateSnapList;
   this.map.on("moveend", updateSnapList);
   this.map.on("draw.snap.options_changed", optionsChangedCallback);
 
