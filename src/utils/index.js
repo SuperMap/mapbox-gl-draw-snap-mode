@@ -11,7 +11,6 @@ import polygonToLine from "@turf/polygon-to-line";
 import nearestPointOnLine from "@turf/nearest-point-on-line";
 import cleanCoords from "@turf/clean-coords";
 import nearestPointInPointSet from "@turf/nearest-point";
-import midpoint from "@turf/midpoint";
 import {
   featureCollection,
   lineString as turfLineString,
@@ -23,101 +22,101 @@ export const IDS = {
   HORIZONTAL_GUIDE: "HORIZONTAL_GUIDE",
 };
 
-// const getFormattedPolygonFeature = (feature) => {
-//   const draw = feature.ctx.api;
-//   const mode = draw.getMode();
-//   let coordinates;
-//   if (mode === 'direct_select') {
-//     // direct_select状态下，需要过滤掉当前选中点
-//     const selectedPointsFeatureCollection = draw.getSelectedPoints();
-//     const selectedPoint = selectedPointsFeatureCollection?.features?.[0]?.geometry?.coordinates;
-//     if (selectedPoint) {
-//       const x = selectedPoint[0];
-//       const y = selectedPoint[1];
-//       coordinates = [
-//         feature.coordinates[0].filter((point) => {
-//           return point[0] !== x && point[1] !== y;
-//         })
-//       ];
-//     } else {
-//       coordinates = feature.coordinates;
-//     }
-//   } else {
-//     // 单面coordinates结构为[[[x,y],[x,y],...]]，在绘制状态下，当前feature内，最后一位为当前鼠标位置，且是没有绘制的，所以需要去掉最后一位
-//     coordinates = [feature.coordinates[0].slice(0, -1)];
-//   }
-//   return {
-//     id: feature.id,
-//     properties: feature.properties,
-//     geometry: {
-//       coordinates,
-//       type: feature.type
-//     },
-//     type: "Feature"
-//   };
-// };
+const getFormattedPolygonFeature = (feature) => {
+  const draw = feature.ctx.api;
+  const mode = draw.getMode();
+  let coordinates;
+  if (mode === 'direct_select') {
+    // direct_select状态下，需要过滤掉当前选中点
+    const selectedPointsFeatureCollection = draw.getSelectedPoints();
+    const selectedPoint = selectedPointsFeatureCollection?.features?.[0]?.geometry?.coordinates;
+    if (selectedPoint) {
+      const x = selectedPoint[0];
+      const y = selectedPoint[1];
+      coordinates = [
+        feature.coordinates[0].filter((point) => {
+          return point[0] !== x && point[1] !== y;
+        })
+      ];
+    } else {
+      coordinates = feature.coordinates;
+    }
+  } else {
+    // 单面coordinates结构为[[[x,y],[x,y],...]]，在绘制状态下，当前feature内，最后一位为当前鼠标位置，且是没有绘制的，所以需要去掉最后一位
+    coordinates = [feature.coordinates[0].slice(0, -1)];
+  }
+  return {
+    id: feature.id,
+    properties: feature.properties,
+    geometry: {
+      coordinates,
+      type: feature.type
+    },
+    type: "Feature"
+  };
+};
 
-// const getFormattedMultiPolygonFeatures = (feature) => {
-//   const currentFeatures = [];
-//   feature.features.forEach((feat) => {
-//     if (feat.type === 'Polygon' && feat.coordinates?.[0]?.length > 2) {
-//       const currentFeat = getFormattedPolygonFeature(feat);
-//       currentFeatures.push(currentFeat);
-//     }
-//     if (feat.type === 'MultiPolygon') {
-//       const feautures = getFormattedMultiPolygonFeatures(feat);
-//       currentFeatures.push(...feautures);
-//     }
-//   });
-//   return currentFeatures
-// };
+const getFormattedMultiPolygonFeatures = (feature) => {
+  const currentFeatures = [];
+  feature.features.forEach((feat) => {
+    if (feat.type === 'Polygon' && feat.coordinates?.[0]?.length > 2) {
+      const currentFeat = getFormattedPolygonFeature(feat);
+      currentFeatures.push(currentFeat);
+    }
+    if (feat.type === 'MultiPolygon') {
+      const feautures = getFormattedMultiPolygonFeatures(feat);
+      currentFeatures.push(...feautures);
+    }
+  });
+  return currentFeatures
+};
 
-// const getFormattedLineFeature = (feature) => {
-//   const draw = feature.ctx.api;
-//   const mode = draw.getMode();
-//   let coordinates;
-//   if (mode === 'direct_select') {
-//     // direct_select状态下，需要过滤掉当前选中点
-//     const selectedPointsFeatureCollection = draw.getSelectedPoints();
-//     const selectedPoint = selectedPointsFeatureCollection?.features?.[0]?.geometry?.coordinates;
-//     if (selectedPoint) {
-//       const x = selectedPoint[0];
-//       const y = selectedPoint[1];
-//       coordinates = feature.coordinates.filter((point) => {
-//         return point[0] !== x && point[1] !== y;
-//       });
-//     } else {
-//       coordinates = feature.coordinates;
-//     }
+const getFormattedLineFeature = (feature) => {
+  const draw = feature.ctx.api;
+  const mode = draw.getMode();
+  let coordinates;
+  if (mode === 'direct_select') {
+    // direct_select状态下，需要过滤掉当前选中点
+    const selectedPointsFeatureCollection = draw.getSelectedPoints();
+    const selectedPoint = selectedPointsFeatureCollection?.features?.[0]?.geometry?.coordinates;
+    if (selectedPoint) {
+      const x = selectedPoint[0];
+      const y = selectedPoint[1];
+      coordinates = feature.coordinates.filter((point) => {
+        return point[0] !== x && point[1] !== y;
+      });
+    } else {
+      coordinates = feature.coordinates;
+    }
 
-//   } else {
-//     // 单线coordinates结构为[[x,y],[x,y],...]，在绘制状态下，当前feature内，最后一位为当前鼠标位置，且是没有绘制的，所以需要去掉最后一位
-//     coordinates = feature.coordinates.slice(0, -1);
-//   }
-//   return {
-//     id: feature.id,
-//     properties: feature.properties,
-//     geometry: {
-//       coordinates,
-//       type: feature.type
-//     },
-//     type: "Feature"
-//   };
-// };
-// const getFormattedMultiLineFeatures = (feature) => {
-//   const currentFeatures = [];
-//   feature.features.forEach((feat) => {
-//     if (feat.type === 'LineString' && feat.coordinates?.length > 2) {
-//       const currentFeat = getFormattedLineFeature(feat);
-//       currentFeatures.push(currentFeat);
-//     }
-//     if (feat.type === 'MultiLineString') {
-//       const feautures = getFormattedMultiLineFeatures(feat);
-//       currentFeatures.push(...feautures);
-//     }
-//   });
-//   return currentFeatures;
-// };
+  } else {
+    // 单线coordinates结构为[[x,y],[x,y],...]，在绘制状态下，当前feature内，最后一位为当前鼠标位置，且是没有绘制的，所以需要去掉最后一位
+    coordinates = feature.coordinates.slice(0, -1);
+  }
+  return {
+    id: feature.id,
+    properties: feature.properties,
+    geometry: {
+      coordinates,
+      type: feature.type
+    },
+    type: "Feature"
+  };
+};
+const getFormattedMultiLineFeatures = (feature) => {
+  const currentFeatures = [];
+  feature.features.forEach((feat) => {
+    if (feat.type === 'LineString' && feat.coordinates?.length > 2) {
+      const currentFeat = getFormattedLineFeature(feat);
+      currentFeatures.push(currentFeat);
+    }
+    if (feat.type === 'MultiLineString') {
+      const feautures = getFormattedMultiLineFeatures(feat);
+      currentFeatures.push(...feautures);
+    }
+  });
+  return currentFeatures;
+};
 
 
 export const addPointToVertices = (
@@ -220,28 +219,28 @@ export const createSnapList = (map, draw, params, getFeatures) => {
     }
   });
 
-  // if (currentFeature.type === 'Polygon') {
-  //   // 判断是否已经绘制出了一个线段
-  //   if (currentFeature.coordinates?.[0]?.length > 2) {
-  //     const currentFeat = getFormattedPolygonFeature(currentFeature);
-  //     return [[...snapList, currentFeat], vertices];
-  //   }
-  // }
-  // if (currentFeature.type === 'LineString') {
-  //   // 判断是否已经绘制出了一个线段
-  //   if (currentFeature.coordinates?.length > 2) {
-  //     const currentFeat = getFormattedLineFeature(currentFeature);
-  //     return [[...snapList, currentFeat], vertices];
-  //   }
-  // }
-  // if (currentFeature.type === "MultiPolygon") {
-  //   const currentFeatures = getFormattedMultiPolygonFeatures(currentFeature);
-  //   return [[...snapList, ...currentFeatures], vertices];
-  // }
-  // if (currentFeature.type === "MultiLineString") {
-  //   const currentFeatures = getFormattedMultiLineFeatures(currentFeature);
-  //   return [[...snapList, ...currentFeatures], vertices];
-  // }
+  if (currentFeature.type === 'Polygon') {
+    // 判断是否已经绘制出了一个线段
+    if (currentFeature.coordinates?.[0]?.length > 2) {
+      const currentFeat = getFormattedPolygonFeature(currentFeature);
+      return [[...snapList, currentFeat], vertices];
+    }
+  }
+  if (currentFeature.type === 'LineString') {
+    // 判断是否已经绘制出了一个线段
+    if (currentFeature.coordinates?.length > 2) {
+      const currentFeat = getFormattedLineFeature(currentFeature);
+      return [[...snapList, currentFeat], vertices];
+    }
+  }
+  if (currentFeature.type === "MultiPolygon") {
+    const currentFeatures = getFormattedMultiPolygonFeatures(currentFeature);
+    return [[...snapList, ...currentFeatures], vertices];
+  }
+  if (currentFeature.type === "MultiLineString") {
+    const currentFeatures = getFormattedMultiLineFeatures(currentFeature);
+    return [[...snapList, ...currentFeatures], vertices];
+  }
   return [snapList, vertices];
 };
 
