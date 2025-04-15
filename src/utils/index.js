@@ -456,7 +456,10 @@ function snapToLineOrPolygon(
   // snap to middle (M) of segment if option is enabled
   let isMiddlePoint = false;
   if (snapToMidPoints) {
-    const M = midpoint(A, B).geometry.coordinates;
+    const M = [
+      (A[0] + B[0]) / 2,
+      (A[1] + B[1]) / 2
+    ];
     const distanceMC = distance(M, C);
 
     if (distanceMC < distanceAC && distanceMC < distanceBC) {
@@ -669,4 +672,17 @@ export const shouldHideGuide = (state, geojson) => {
   }
 
   return false;
+};
+
+// zoom:   snapVertexPriorityDistance(km):
+// 1           600
+// 2           500
+// 3           400
+// 3-6 snapVertexPriorityDistance线性降低到15，6-24降低到1
+export const getFormattedSnapVertexPriorityDistance = (zoom) => {
+  return zoom <= 1 ? 600 :
+    zoom <= 2 ? 500 :
+    zoom <= 3 ? 400 :
+    zoom <= 6 ? 400 - (385 * (zoom - 3) / 3) :
+    Math.max(1, 15 - (14 * (zoom - 6) / 18));
 };

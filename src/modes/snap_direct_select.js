@@ -1,6 +1,7 @@
 import MapboxDraw from "@mapbox/mapbox-gl-draw";
 import {
   createSnapList,
+  getFormattedSnapVertexPriorityDistance,
   getGuideFeature,
   IDS,
   snap,
@@ -89,6 +90,9 @@ SnapDirectSelect.dragVertex = function (state, e) {
   );
   state.vertices = vertices;
   state.snapList = snapList;
+
+  // 动态调整snapVertexPriorityDistance
+  state.options.snapOptions.snapVertexPriorityDistance = getFormattedSnapVertexPriorityDistance(this.map.getZoom());
 
   const { lng, lat } = snap(state, e);
 
