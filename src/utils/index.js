@@ -685,3 +685,49 @@ export const getFormattedSnapVertexPriorityDistance = (zoom) => {
     zoom <= 6 ? 400 - (385 * (zoom - 3) / 3) :
     Math.max(1, 15 - (14 * (zoom - 6) / 18));
 };
+
+const snapSymbolSourceName = 'snap-indicator';
+const snapSymbolName = 'snap-indicator-layer';
+
+export const addSnapSymbol = (map) => {
+  if (map.getSource(snapSymbolSourceName) || map.getLayer(snapSymbolName)) {
+    return;
+  }
+
+  map.addSource(snapSymbolSourceName, {
+    type: 'geojson',
+    data: {
+      type: 'FeatureCollection',
+      features: [],
+    }
+  });
+  
+  map.addLayer({
+    id: snapSymbolName,
+    type: 'circle',
+    source: snapSymbolSourceName,
+    paint: {
+      'circle-radius': 6,
+      'circle-color': '#00ffff'
+    }
+  });
+};
+
+export const updateSnapSymbol = (map, newLngLat, originLngLat)=>{
+  const isSnapSuccess = newLngLat.lng !== originLngLat.lng || newLngLat.lat !== originLngLat.lat;
+  map.getSource(snapSymbolSourceName).setData({
+    type: 'FeatureCollection',
+    features: isSnapSuccess ? [{
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [newLngLat.lng, newLngLat.lat]
+      }
+    }] : []
+  });
+};
+
+export const deleteSnapSymbol = (map) => {
+  map.getLayer(snapSymbolName) && map.removeLayer(snapSymbolName);
+  map.getSource(snapSymbolSourceName) && map.removeSource(snapSymbolSourceName);
+};

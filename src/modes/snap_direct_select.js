@@ -5,6 +5,9 @@ import {
   getGuideFeature,
   IDS,
   snap,
+  addSnapSymbol,
+  updateSnapSymbol,
+  deleteSnapSymbol
 } from "./../utils/index.js";
 
 const { doubleClickZoom } = MapboxDraw.lib;
@@ -13,6 +16,7 @@ const DirectSelect = MapboxDraw.modes.direct_select;
 const SnapDirectSelect = { ...DirectSelect };
 
 SnapDirectSelect.onSetup = function (opts) {
+  addSnapSymbol(this.map);
   const featureId = opts.featureId;
   const feature = this.getFeature(featureId);
 
@@ -95,11 +99,12 @@ SnapDirectSelect.dragVertex = function (state, e) {
   state.options.snapOptions.snapVertexPriorityDistance = getFormattedSnapVertexPriorityDistance(this.map.getZoom());
 
   const { lng, lat } = snap(state, e);
-
+  updateSnapSymbol(this.map, { lng, lat }, e.lngLat);
   state.feature.updateCoordinate(state.selectedCoordPaths[0], lng, lat);
 };
 
 SnapDirectSelect.onStop = function (state) {
+  deleteSnapSymbol(this.map);
   this.deleteFeature(IDS.VERTICAL_GUIDE, { silent: true });
   this.deleteFeature(IDS.HORIZONTAL_GUIDE, { silent: true });
 

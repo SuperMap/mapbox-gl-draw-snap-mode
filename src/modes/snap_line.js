@@ -7,6 +7,9 @@ import {
   IDS,
   shouldHideGuide,
   snap,
+  addSnapSymbol,
+  updateSnapSymbol,
+  deleteSnapSymbol
 } from "./../utils/index.js";
 
 const { doubleClickZoom } = MapboxDraw.lib;
@@ -15,6 +18,7 @@ const DrawLine = MapboxDraw.modes.draw_line_string;
 const SnapLineMode = { ...DrawLine };
 
 SnapLineMode.onSetup = function (options) {
+  addSnapSymbol(this.map);
   const line = this.newFeature({
     type: geojsonTypes.FEATURE,
     properties: {},
@@ -136,7 +140,7 @@ SnapLineMode.onMouseMove = function (state, e) {
   state.options.snapOptions.snapVertexPriorityDistance = getFormattedSnapVertexPriorityDistance(this.map.getZoom());
 
   const { lng, lat } = snap(state, e);
-
+  updateSnapSymbol(this.map, { lng, lat }, e.lngLat);
   state.line.updateCoordinate(state.currentVertexPosition, lng, lat);
   state.snappedLng = lng;
   state.snappedLat = lat;
@@ -169,6 +173,7 @@ SnapLineMode.toDisplayFeatures = function (state, geojson, display) {
 
 // This is 'extending' DrawLine.onStop
 SnapLineMode.onStop = function (state) {
+  deleteSnapSymbol(this.map);
   this.deleteFeature(IDS.VERTICAL_GUIDE, { silent: true });
   this.deleteFeature(IDS.HORIZONTAL_GUIDE, { silent: true });
 

@@ -7,6 +7,9 @@ import {
   IDS,
   shouldHideGuide,
   snap,
+  addSnapSymbol,
+  updateSnapSymbol,
+  deleteSnapSymbol
 } from "./../utils/index.js";
 import booleanIntersects from "@turf/boolean-intersects";
 
@@ -16,6 +19,7 @@ const DrawPolygon = MapboxDraw.modes.draw_polygon;
 const SnapPolygonMode = { ...DrawPolygon };
 
 SnapPolygonMode.onSetup = function (options) {
+  addSnapSymbol(this.map);
   const polygon = this.newFeature({
     type: geojsonTypes.FEATURE,
     properties: {},
@@ -143,7 +147,7 @@ SnapPolygonMode.onMouseMove = function (state, e) {
   state.options.snapOptions.snapVertexPriorityDistance = getFormattedSnapVertexPriorityDistance(this.map.getZoom());
 
   const { lng, lat } = snap(state, e);
-
+  updateSnapSymbol(this.map, { lng, lat }, e.lngLat);
   state.polygon.updateCoordinate(`0.${state.currentVertexPosition}`, lng, lat);
   state.snappedLng = lng;
   state.snappedLat = lat;
@@ -176,6 +180,7 @@ SnapPolygonMode.toDisplayFeatures = function (state, geojson, display) {
 
 // This is 'extending' DrawPolygon.onStop
 SnapPolygonMode.onStop = function (state) {
+  deleteSnapSymbol(this.map);
   this.deleteFeature(IDS.VERTICAL_GUIDE, { silent: true });
   this.deleteFeature(IDS.HORIZONTAL_GUIDE, { silent: true });
 

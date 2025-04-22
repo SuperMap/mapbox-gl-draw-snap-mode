@@ -6,6 +6,9 @@ import {
   IDS,
   shouldHideGuide,
   snap,
+  addSnapSymbol,
+  updateSnapSymbol,
+  deleteSnapSymbol
 } from "./../utils/index.js";
 
 const { doubleClickZoom } = MapboxDraw.lib;
@@ -14,6 +17,7 @@ const DrawPoint = MapboxDraw.modes.draw_point;
 const SnapPointMode = { ...DrawPoint };
 
 SnapPointMode.onSetup = function (options) {
+    addSnapSymbol(this.map);
   const point = this.newFeature({
     type: geojsonTypes.FEATURE,
     properties: {},
@@ -114,7 +118,7 @@ SnapPointMode.onMouseMove = function (state, e) {
   state.options.snapOptions.snapVertexPriorityDistance = getFormattedSnapVertexPriorityDistance(this.map.getZoom());
 
   const { lng, lat } = snap(state, e);
-
+  updateSnapSymbol(this.map, { lng, lat }, e.lngLat);
   state.snappedLng = lng;
   state.snappedLat = lat;
 
@@ -146,6 +150,7 @@ SnapPointMode.toDisplayFeatures = function (state, geojson, display) {
 
 // This is 'extending' DrawPoint.onStop
 SnapPointMode.onStop = function (state) {
+  deleteSnapSymbol(this.map);
   this.deleteFeature(IDS.VERTICAL_GUIDE, { silent: true });
   this.deleteFeature(IDS.HORIZONTAL_GUIDE, { silent: true });
 
