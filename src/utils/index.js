@@ -531,6 +531,18 @@ const checkPrioritySnapping = (
   }
 };
 
+function getPixelByLngLat(lnglat1, lnglat2, map) {
+  // map.project() 方法：把经纬度坐标（lnglat）转换成屏幕像素坐标（也就是在地图容器内的位置，比如 {x: 512, y: 300} 这种）
+  const p1 = map.project(lnglat1);
+  const p2 = map.project(lnglat2);
+  // 计算差值
+  const dx = p1.x - p2.x;
+  const dy = p1.y - p2.y;
+  // 计算两点之间的直线像素距离 距离 = √(dx² + dy²) 勾股定理
+  const pixelDist = Math.sqrt(dx * dx + dy * dy);
+  return pixelDist
+};
+
 /**
  * Returns snap points if there are any, otherwise the original lng/lat of the event
  * Also, defines if vertices should show on the state object
@@ -565,6 +577,15 @@ export const snap = (state, e) => {
     // if no layers found. Can happen when circle is the only visible layer on the map and the hidden snapping-border circle layer is also on the map
     if (Object.keys(closestLayer).length === 0) {
       return false;
+    }
+
+    if (!['Point', 'MultiPoint'].includes(closestLayer.layer.geometry.type)) {
+      const A = closestLayer.segment[0];
+      const B = closestLayer.segment[1];
+      const pixelDist = getPixelByLngLat(A, B, state.map);
+      if ((state.options.snapOptions.maxIgnorableLineLength ?? 50) > pixelDist) {
+        return { lng, lat };
+      }
     }
 
     const isMarker = closestLayer.isMarker;
