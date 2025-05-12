@@ -500,7 +500,7 @@ function snapToLineOrPolygon(
         // 如果禁用了捕捉到端点
         !snapToEndPoints
       );
-    snapLatlng = shouldSnapToLngLat ? lngLat : closestVertexLatLng;
+    snapLatlng = shouldSnapToLngLat ? (snapToLines ? C : lngLat) : closestVertexLatLng;
   }
 
   // return the copy of snapping point
@@ -694,17 +694,39 @@ export const shouldHideGuide = (state, geojson) => {
   return false;
 };
 
-// zoom:   snapVertexPriorityDistance(km):
-// 1           600
-// 2           500
-// 3           400
-// 3-6 snapVertexPriorityDistance线性降低到15，6-24降低到1
+/**
+ * 根据地图缩放级别 (zoom) 返回顶点吸附的优先级距离
+ * 随着 zoom 增大，吸附距离逐渐减小（更严格的吸附判定）
+ * @param {number} zoom - 地图缩放级别（通常 0~20）
+ * @returns {number} 顶点吸附的最大有效距离
+ */
 export const getFormattedSnapVertexPriorityDistance = (zoom) => {
-  return zoom <= 1 ? 600 :
-    zoom <= 2 ? 500 :
-    zoom <= 3 ? 400 :
-    zoom <= 6 ? 400 - (385 * (zoom - 3) / 3) :
-    Math.max(1, 15 - (14 * (zoom - 6) / 18));
+  switch (true) {
+    // 1. 最宏观级别（zoom ≤ 1），吸附距离最大（600）
+    case zoom <= 1:
+      return 600;
+    // 2. 1 < zoom ≤ 2，吸附距离稍减（500）
+    case zoom <= 2:
+      return 500;
+    // 3. 2 < zoom ≤ 3，吸附距离降至 400
+    case zoom <= 3:
+      return 400;
+    // 4. 3 < zoom ≤ 6，线性递减：400 → 15
+    case zoom <= 6:
+      return 400 - (385 * (zoom - 3) / 3);
+    // 5. 6 < zoom ≤ 9，线性递减：15 → 3
+    case zoom <= 9:
+      return 15 - (12 * (zoom - 6) / 3);
+    // 6. 9 < zoom ≤ 12，线性递减：3 → 1
+    case zoom <= 12:
+      return 3 - (2 * (zoom - 9) / 3);
+    // 7. 12 < zoom ≤ 16，线性递减：1 → 0.01
+    case zoom <= 16:
+      return 1 - (0.99 * (zoom - 12) / 4);
+    // 8. zoom > 16，吸附距离极小（0.001）
+    default:
+      return 0.001;
+  }
 };
 
 const snapSymbolSourceName = 'snap-indicator';
