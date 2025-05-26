@@ -420,6 +420,31 @@ const metersPerPixel = function (latitude, zoomLevel) {
   );
 };
 
+function getEndPoint(geometry) {
+  const result = [];
+  switch (geometry.type) {
+    case "LineString":
+      result.push(geometry.coordinates[0]);
+      result.push(geometry.coordinates[geometry.coordinates.length - 1]);
+      break;
+    case "MultiLineString":
+      geometry.coordinates.forEach((item) => {
+        result.push(item[0]);
+        result.push(item[item.length - 1]);
+      });
+      break;  
+    case "Polygon":
+      result.push(geometry.coordinates[0][0]);
+      break; 
+    case "MultiPolygon":
+      geometry.coordinates.forEach((coords) => {
+        result.push(coords[0][0]);
+      });
+      break;  
+  }
+  return result;
+}
+
 // we got the point we want to snap to (C), but we need to check if a coord of the polygon
 function snapToLineOrPolygon(
   closestLayer,
@@ -473,7 +498,7 @@ function snapToLineOrPolygon(
   const priorityDistance = snapVertexPriorityDistance;
 
   // 线段的端点坐标
-  const endPoints = geometry.type === "LineString" ? [geometry.coordinates[0], geometry.coordinates[geometry.coordinates.length - 1]] : [];
+  const endPoints = getEndPoint(geometry);
   // 判断是否为端点
   const isEndPoint = endPoints.find((point) => {
     return point[0] === closestVertexLatLng[0] && point[1] === closestVertexLatLng[1];
