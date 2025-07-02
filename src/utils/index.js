@@ -11,6 +11,7 @@ import polygonToLine from "@turf/polygon-to-line";
 import nearestPointOnLine from "@turf/nearest-point-on-line";
 import cleanCoords from "@turf/clean-coords";
 import nearestPointInPointSet from "@turf/nearest-point";
+import proj4 from 'proj4';
 import {
   featureCollection,
   lineString as turfLineString,
@@ -411,14 +412,93 @@ const calcClosestLayer = (lngLat, layers) => {
 };
 
 // minimal distance before marker snaps (in pixels)
-const metersPerPixel = function (latitude, zoomLevel) {
-  const earthCircumference = 40075017;
-  const latitudeRadians = latitude * (Math.PI / 180);
-  return (
-    (earthCircumference * Math.cos(latitudeRadians)) /
-    Math.pow(2, zoomLevel + 8)
-  );
-};
+function isGeographicCRS(wkt) {
+    // 转换为大写并移除多余空格，便于处理
+    const normalizedWkt = wkt.trim().toUpperCase();
+    
+    // 1. 检查 WKT2 格式的地理坐标系
+    if (normalizedWkt.startsWith('GEOGCRS[') || 
+        normalizedWkt.startsWith('GEODCRS[')) {
+        return true;
+    }
+    
+    // 2. 检查 WKT1 格式的地理坐标系
+    if (normalizedWkt.startsWith('GEOGCS[')) {
+        // 特殊检查：不规范写法（GEOGCS 中包含 PROJECTION）
+        const hasProjection = normalizedWkt.includes('PROJECTION[');
+        
+        // 标准地理坐标系不应包含 PROJECTION 参数
+        return !hasProjection;
+    }
+    
+    // 3. 其他情况（投影坐标系、复合坐标系等）
+    return false;
+}
+
+function calculateGeographicDistance(coord1, coord2) {
+  const [lng1, lat1] = coord1;
+  const [lng2, lat2] = coord2;
+  
+  const R = 6371000; // 地球半径(米)
+  // φ1 和 φ2 分别是两个点的纬度（弧度）。
+  // Δφ 是两个点纬度的差值（弧度）。
+  // Δλ 是两个点经度的差值（弧度）。
+  const φ1 = lat1 * Math.PI/180;
+  const φ2 = lat2 * Math.PI/180;
+  const Δφ = (lat2-lat1) * Math.PI/180;
+  const Δλ = (lng2-lng1) * Math.PI/180;
+  // 这是 Haversine 公式的一部分，用于计算两个点之间的球面距离的中间值。
+  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+            Math.cos(φ1) * Math.cos(φ2) *
+            Math.sin(Δλ/2) * Math.sin(Δλ/2);
+  // 这是 Haversine 公式的另一部分，用于计算两个点之间的球面距离的最终值。
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  // 将中间变量 c 乘以地球半径 R，得到两个点之间的距离，单位为米。
+  return R * c;
+}
+
+// 获取每像素对应的米数
+function getMetersPerPixel(map) {
+    const mapCrs = map.getCRS();
+    const targetEpsg = mapCrs.epsgCode
+  if (!proj4.defs[targetEpsg]) {
+    mapCrs.WKT && proj4.defs(mapCrs.epsgCode, mapCrs.WKT);
+  }
+  // 1. 获取中心点信息
+  const centerLngLat = map.getCenter();
+  const centerPixel = map.project(centerLngLat);
+  
+  // 2. 计算偏移1像素的点
+  const horizontalPixel = [centerPixel.x + 1, centerPixel.y];
+  const verticalPixel = [centerPixel.x, centerPixel.y + 1];
+  
+  // 3. 将偏移点的像素坐标转换回经纬度坐标
+  const horizontalLngLat = map.unproject(horizontalPixel);
+  const verticalLngLat = map.unproject(verticalPixel);
+  
+  // 4. 转换坐标到目标EPSG
+  const toTarget = (lngLat) => {
+    if (targetEpsg === 'EPSG:4326') return [lngLat.lng, lngLat.lat];
+    return proj4(targetEpsg).forward([lngLat.lng, lngLat.lat]);
+  };
+  
+  const centerTarget = toTarget(centerLngLat);
+  const horizontalTarget = toTarget(horizontalLngLat);
+  const verticalTarget = toTarget(verticalLngLat);
+  
+  // 5. 判断坐标系类型
+  // MS内注册3857和4326的CRS没有WKT
+  const isGeographic = mapCrs.epsgCode === 'EPSG:4326' ||  mapCrs.WKT && isGeographicCRS(mapCrs.WKT);
+  const horizontal = isGeographic
+      ? calculateGeographicDistance(centerTarget, horizontalTarget)
+      : Math.abs(horizontalTarget[0] - centerTarget[0]),
+    vertical = isGeographic
+      ? calculateGeographicDistance(centerTarget, verticalTarget)
+      : Math.abs(verticalTarget[1] - centerTarget[1])
+  // 6. 用平均值做结果
+  return (horizontal + vertical) / 2;
+}
+
 
 function getEndPoint(geometry) {
   const result = [];
@@ -632,9 +712,8 @@ export const snap = (state, e) => {
 
     minDistance =
       ((state.options.snapOptions && state.options.snapOptions.snapPx) || 15) *
-      metersPerPixel(snapLatLng.lat, state.map.getZoom());
+      getMetersPerPixel(state.map);
   }
-
   let verticalPx, horizontalPx;
   if (state.options.guides) {
     const nearestGuideline = getNearbyVertices(state.vertices, e.lngLat);
