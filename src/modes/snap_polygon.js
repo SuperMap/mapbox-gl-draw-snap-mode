@@ -42,6 +42,7 @@ SnapPolygonMode.onSetup = function (options) {
   this.clearSelectedFeatures();
   doubleClickZoom.disable(this);
   const draw = this._ctx.api;
+  Object.assign(draw, { deleteSnapSymbol });
   const params = {
     currentFeature: polygon,
     snapFeatures: this._ctx.options.snapOptions?.snapFeatures

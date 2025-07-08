@@ -17,6 +17,8 @@ const SnapDirectSelect = { ...DirectSelect };
 
 SnapDirectSelect.onSetup = function (opts) {
   addSnapSymbol(this.map);
+  const draw = this._ctx.api;
+  Object.assign(draw, { deleteSnapSymbol });
   const featureId = opts.featureId;
   const feature = this.getFeature(featureId);
 

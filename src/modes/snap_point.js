@@ -59,6 +59,7 @@ SnapPointMode.onSetup = function (options) {
 
   state.options = this._ctx.options;
   const draw = this._ctx.api;
+  Object.assign(draw, { deleteSnapSymbol });
   const updateSnapList = (e) => {
     const params = {
       currentFeature: point,
